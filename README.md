@@ -1,41 +1,62 @@
 # agent-statusbar
 
+[![License: MIT](https://img.shields.io/github/license/WSeubring/agent-statusbar)](LICENSE)
+![Scope: personal](https://img.shields.io/badge/scope-personal-blue)
+![Status: active](https://img.shields.io/badge/status-active-success)
+
 Personal status bars for the coding agents I use.
 
-This is a public personal repo, not a general-purpose framework. I keep my own status bar integrations here, publish them so they are easy to reuse, and organize them so each agent can have its own implementation without turning the repo into a mess.
+> Public repo, personal project.
+> 
+> This is where I keep the status bar integrations I actually run, tweak, and maintain for myself. It is meant to be readable and copyable, not a giant universal framework.
 
-If you want something polished and universal, this probably is not that. If you want practical, hackable status bars you can copy and adapt, that is exactly what this repo is for.
+## What it is
 
-## What this repo contains
+This repo currently contains two small, agent-specific integrations:
 
-Right now the repo has two integrations:
+- [Claude Code](integrations/claude/README.md): a Python status line renderer that reads JSON payloads
+- [pi](integrations/pi/README.md): a TypeScript footer extension for pi
 
-- **Claude Code**: a Python status line renderer that reads JSON payloads
-- **pi**: a TypeScript footer extension for pi
-
-Both integrations share the same rough goal:
+Shared goals:
 
 - show the active model
 - show context usage clearly
 - optionally show session or weekly quota warnings when available
-- keep the output compact enough for day-to-day terminal use
+- stay compact enough for everyday terminal use
 
-## Personal-repo note
+## What it is not
 
-This repo is intentionally opinionated.
+This repo is **not** trying to be:
 
-It reflects:
+- a generic status bar framework
+- a packaged multi-agent SDK
+- a one-config-fits-all solution
 
-- my preferred formatting
-- my preferred thresholds and warnings
-- the agents I actually use
-- the level of abstraction I personally want
-
-So the intended workflow is usually:
+It is intentionally opinionated and personal. The expected workflow is:
 
 1. clone it
-2. copy the integration you care about
-3. tweak colors, labels, thresholds, or fields
+2. use the integration you care about
+3. tweak the formatting, labels, thresholds, or fields to match your own setup
+
+## Demo output
+
+### Claude Code
+
+Example output from `python3 integrations/claude/bin/statusbar.py --demo`:
+
+```text
+ AGENT │ Claude Sonnet 4 │ ◔ ctx ███████░░░ 68% │ ▲ session 54% │ ▲ weekly 81%
+```
+
+### pi
+
+Representative footer output:
+
+```text
+PI │ Claude Sonnet 4 │ ctx █████░░░ 68% 143.2k │ session 54% │ weekly 81%    in 512.4k │ out 38.1k │ $2.173 │  main
+```
+
+Exact colors, spacing, token counts, and branch display depend on your terminal, theme, model, and active session.
 
 ## Repo layout
 
@@ -73,13 +94,13 @@ Compatibility entrypoint:
 python3 bin/agent-statusbar.py --demo
 ```
 
-The Claude renderer reads JSON from:
+The renderer reads JSON from:
 
-1. stdin
-2. a file path passed as the first argument
+1. a file path passed as the first argument
+2. stdin
 3. `AGENT_STATUSBAR_JSON`
 
-It also still supports the older `CLAUDE_STATUSBAR_*` environment variables.
+It also supports the older `CLAUDE_STATUSBAR_*` environment variables for compatibility.
 
 Useful environment variables:
 
@@ -91,18 +112,20 @@ AGENT_STATUSBAR_HIDE_MODEL=1
 AGENT_STATUSBAR_LABEL=CLAUDE
 ```
 
-If Claude Code can send status JSON to a command on stdin, point it at one of:
+If Claude Code can pipe status JSON to a command on stdin, point it at one of:
 
 ```bash
 python3 /absolute/path/to/bin/agent-statusbar.py
 python3 /absolute/path/to/integrations/claude/bin/statusbar.py
 ```
 
+More details: [integrations/claude/README.md](integrations/claude/README.md)
+
 ### pi
 
 Inside this repo, pi auto-loads the shim in `.pi/extensions/pi-status-footer.ts`.
 
-If you want to load the integration directly from elsewhere:
+To load the integration directly from elsewhere:
 
 ```bash
 pi -e /absolute/path/to/integrations/pi/extensions/status-footer.ts
@@ -118,7 +141,7 @@ The pi footer shows:
 - cumulative input/output tokens
 - cumulative cost
 
-pi does not natively expose Claude subscription quotas, so those quota values are optional inputs:
+Optional quota inputs:
 
 ```bash
 export PI_STATUS_SESSION_PCT=54
@@ -142,39 +165,35 @@ with:
 }
 ```
 
-## Design goals
+More details: [integrations/pi/README.md](integrations/pi/README.md)
 
-- **small and readable** over highly abstract
-- **copyable** over packaged
+## Design choices
+
+This repo prefers:
+
+- **small and readable** over abstract
+- **copyable source** over packaging
 - **good defaults** over endless configuration
 - **agent-specific implementations** over forcing everything through one API
 
-## Current naming
+## Naming
 
-The repo uses generic naming at the top level so more integrations can be added later:
+Top-level naming is generic so I can add more integrations later without renaming the whole repo:
 
 - repo: `agent-statusbar`
 - Claude implementation: `integrations/claude/bin/statusbar.py`
 - pi implementation: `integrations/pi/extensions/status-footer.ts`
 
-The wrapper files stay in place so existing local usage does not break.
+Compatibility wrappers stay in place so my local usage does not break when files move.
 
-## Future additions
+## Possible future integrations
 
-Possible future integrations:
+Maybe, if I end up using them enough:
 
 - `integrations/codex/`
 - `integrations/opencode/`
 - `integrations/gemini-cli/`
 
-But this repo will stay personal and practical. I do not plan to turn it into a giant compatibility layer unless there is a real need.
-
 ## License
 
-MIT. See `LICENSE`.
-
-## Publishing notes
-
-Suggested GitHub repo description:
-
-**Personal status bars for coding agents**
+MIT. See [LICENSE](LICENSE).
