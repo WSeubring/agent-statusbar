@@ -30,6 +30,9 @@ Shared goals:
 - optionally show session or weekly quota warnings when available
 - stay compact enough for everyday terminal use
 
+Feature reference for future edits and LLM context:
+- [STATUSBAR_FEATURES.md](STATUSBAR_FEATURES.md)
+
 ## What it is not
 
 This repo is **not** trying to be:
@@ -51,7 +54,8 @@ It is intentionally opinionated and personal. The expected workflow is:
 Example output from `python3 integrations/claude/bin/statusbar.py --demo`:
 
 ```text
- AGENT │ Claude Sonnet 4 │ ◔ ctx ███████░░░ 68% │ ▲ session 54% │ ▲ weekly 81%
+ CLAUDE │ Claude Sonnet 4 │ ◔ ctx ███████░░░ 68% │ ▲ session 54% │ ▲ weekly 81%
+agent-statusbar (main)
 ```
 
 ### pi
@@ -59,7 +63,8 @@ Example output from `python3 integrations/claude/bin/statusbar.py --demo`:
 Representative footer output:
 
 ```text
-PI │ Claude Sonnet 4 │ ctx █████░░░ 68% 143.2k │ session 54% │ weekly 81%    in 512.4k │ out 38.1k │ $2.173 │  main
+PI │ Claude Sonnet 4 (high) │ ctx █████░░░ 68% 143.2k │ session 54% │ weekly 81%    in 512.4k │ out 38.1k │ $2.173
+agent-statusbar (main)
 ```
 
 Exact colors, spacing, token counts, and branch display depend on your terminal, theme, model, and active session.
@@ -118,12 +123,19 @@ AGENT_STATUSBAR_HIDE_MODEL=1
 AGENT_STATUSBAR_LABEL=CLAUDE
 ```
 
-If Claude Code can pipe status JSON to a command on stdin, point it at one of:
+Add this to `~/.claude/settings.json` to enable it in Claude Code:
 
-```bash
-python3 /absolute/path/to/bin/agent-statusbar.py
-python3 /absolute/path/to/integrations/claude/bin/statusbar.py
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "python3 /absolute/path/to/integrations/claude/bin/statusbar.py",
+    "refreshInterval": 5
+  }
+}
 ```
+
+The Claude renderer also shows the current directory and git branch on a second line.
 
 More details: [integrations/claude/README.md](integrations/claude/README.md)
 
@@ -139,11 +151,11 @@ pi -e /absolute/path/to/integrations/pi/extensions/status-footer.ts
 
 The pi footer shows:
 
-- model
+- model with thinking level for reasoning-capable models
 - context usage with a mini bar
 - optional session warning at `50%+`
 - optional weekly warning at `75%+`
-- git branch
+- current directory with git branch on a second line
 - cumulative input/output tokens
 - cumulative cost
 

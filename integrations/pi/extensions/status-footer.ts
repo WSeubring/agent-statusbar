@@ -3,6 +3,7 @@
  *
  * Native pi data:
  * - model
+ * - thinking level via pi.getThinkingLevel()
  * - context usage via ctx.getContextUsage()
  * - git branch via footerData.getGitBranch()
  * - cumulative token and cost stats via session history
@@ -16,6 +17,7 @@ import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import fs from "node:fs";
+import path from "node:path";
 
 function parsePercent(value: unknown): number | undefined {
 	if (value === null || value === undefined || value === "") return undefined;
@@ -54,6 +56,13 @@ function fmtTokens(n: number): string {
 	if (n < 1000) return `${n}`;
 	if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
 	return `${(n / 1_000_000).toFixed(1)}m`;
+}
+
+function formatModelLabel(model: any, thinkingLevel: string | undefined): string | undefined {
+	const base = model?.name || model?.id;
+	if (!base) return undefined;
+	if (!model?.reasoning) return base;
+	return `${base} (${thinkingLevel || "off"})`;
 }
 
 function icon(name: "ctx" | "branch"): string {
@@ -95,7 +104,7 @@ function readLimitData(): { session?: number; weekly?: number } {
 	};
 }
 
-function installFooter(ctx: any) {
+function installFooter(pi: ExtensionAPI, ctx: any) {
 	ctx.ui.setFooter((tui: any, theme: any, footerData: any) => {
 		const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
 
@@ -171,8 +180,9 @@ function installFooter(ctx: any) {
 
 				const leftParts: string[] = [labelValue("PI", undefined, "accent")];
 
-				if (ctx.model?.name || ctx.model?.id) {
-					leftParts.push(valueOnly(ctx.model?.name || ctx.model?.id, "muted"));
+				const modelLabel = formatModelLabel(ctx.model, pi.getThinkingLevel());
+				if (modelLabel) {
+					leftParts.push(valueOnly(modelLabel, "muted"));
 				}
 
 				leftParts.push(`${muted("ctx")} ${paint(contextTone, contextValue)}`);
@@ -184,31 +194,35 @@ function installFooter(ctx: any) {
 				if (weeklySegment) leftParts.push(weeklySegment);
 
 				const branch = footerData.getGitBranch();
+				const cwdName = path.basename(ctx.cwd || process.cwd()) || ctx.cwd || ".";
+				const locationLine = muted(branch ? `${cwdName} (${branch})` : cwdName);
 				const rightParts = [
 					soft(`in ${fmtTokens(input)}`),
 					soft(`out ${fmtTokens(output)}`),
 					soft(`$${cost.toFixed(3)}`),
-					branch ? muted(`${icon("branch")} ${branch}`) : "",
 				].filter(Boolean);
 
 				const left = leftParts.join(divider);
 				const right = rightParts.join(divider);
 
-				if (!right) return [truncateToWidth(left, width)];
+				if (!right) return [truncateToWidth(left, width), truncateToWidth(locationLine, width)];
 
 				const space = width - visibleWidth(left) - visibleWidth(right);
 				if (space >= 2) {
-					return [truncateToWidth(left + " ".repeat(space) + right, width)];
+					return [
+						truncateToWidth(left + " ".repeat(space) + right, width),
+						truncateToWidth(locationLine, width),
+					];
 				}
 
-				return [truncateToWidth(left, width), truncateToWidth(right, width)];
+				return [truncateToWidth(left, width), truncateToWidth(right, width), truncateToWidth(locationLine, width)];
 			},
 		};
 	});
 }
 
 export default function (pi: ExtensionAPI) {
-	pi.on("session_start", async (_event, ctx) => installFooter(ctx));
-	pi.on("model_select", async (_event, ctx) => installFooter(ctx));
-	pi.on("turn_end", async (_event, ctx) => installFooter(ctx));
+	pi.on("session_start", async (_event, ctx) => installFooter(pi, ctx));
+	pi.on("model_select", async (_event, ctx) => installFooter(pi, ctx));
+	pi.on("turn_end", async (_event, ctx) => installFooter(pi, ctx));
 }

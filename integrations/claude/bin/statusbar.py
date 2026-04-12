@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,7 +67,7 @@ USE_COLOR = not env_flag("NO_COLOR", default=False)
 USE_UNICODE = not env_flag("AGENT_STATUSBAR_ASCII", "CLAUDE_STATUSBAR_ASCII", default=False)
 BAR_WIDTH = max(4, min(16, int(env_value("AGENT_STATUSBAR_BAR_WIDTH", "CLAUDE_STATUSBAR_BAR_WIDTH", default="10"))))
 SHOW_MODEL = not env_flag("AGENT_STATUSBAR_HIDE_MODEL", "CLAUDE_STATUSBAR_HIDE_MODEL", default=False)
-APP_LABEL = env_value("AGENT_STATUSBAR_LABEL", "CLAUDE_STATUSBAR_LABEL", default="AGENT") or "AGENT"
+APP_LABEL = env_value("AGENT_STATUSBAR_LABEL", "CLAUDE_STATUSBAR_LABEL", default="CLAUDE") or "CLAUDE"
 
 
 def style(text: str, *codes: str) -> str:
@@ -254,6 +255,28 @@ def bar(value: float | None, width: int = BAR_WIDTH) -> str:
     return style(fill_char * filled, color, BOLD) + muted(empty_char * (width - filled))
 
 
+def location_line(cwd: Path | None = None) -> str | None:
+    cwd = cwd or Path.cwd()
+    cwd_name = cwd.name or str(cwd)
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=0.3,
+            check=False,
+        )
+        branch = result.stdout.strip()
+        if result.returncode == 0 and branch and branch != "HEAD":
+            return muted(f"{cwd_name} ({branch})")
+    except Exception:
+        pass
+
+    return muted(cwd_name)
+
+
 def build_status_line(metrics: Metrics) -> str:
     parts: list[str] = []
     parts.append(pill(APP_LABEL, FG["white"], BG["violet"]))
@@ -285,7 +308,11 @@ def build_status_line(metrics: Metrics) -> str:
         parts.append(pill(label, FG["white"], BG["red"] if metrics.weekly_pct >= 90 else BG["amber"] if metrics.weekly_pct >= 75 else BG["neutral"], bold=False) if metrics.weekly_pct >= 75 else style(label, weekly_color))
 
     separator = muted(" │ ")
-    return separator.join(parts)
+    top = separator.join(parts)
+    bottom = location_line()
+    if bottom:
+        return f"{top}\n{bottom}"
+    return top
 
 
 DEMO_PAYLOAD = {

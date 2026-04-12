@@ -50,14 +50,32 @@ AGENT_STATUSBAR_JSON='{"model":{"display_name":"Claude Sonnet 4"},"context":{"us
 python3 integrations/claude/bin/statusbar.py
 ```
 
+## Claude Code config
+
+Add this to `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "python3 /absolute/path/to/integrations/claude/bin/statusbar.py",
+    "refreshInterval": 5
+  }
+}
+```
+
+The renderer now also shows the current directory and git branch on a second line.
+
 ## Demo output
 
 ```text
- AGENT │ Claude Sonnet 4 │ ◔ ctx ███████░░░ 68% │ ▲ session 54% │ ▲ weekly 81%
+ CLAUDE │ Claude Sonnet 4 │ ◔ ctx ███████░░░ 68% │ ▲ session 54% │ ▲ weekly 81%
+agent-statusbar (main)
 ```
 
 ## Notes
 
 - The renderer tries to find model, context, session, and weekly usage heuristically from nested JSON.
+- It also shows the current directory and git branch from the current working tree.
 - If data is missing, the output degrades gracefully instead of failing hard.
 - The top-level `bin/agent-statusbar.py` file is only a compatibility wrapper.

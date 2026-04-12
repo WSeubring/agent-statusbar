@@ -20,14 +20,14 @@ pi -e /absolute/path/to/integrations/pi/extensions/status-footer.ts
 
 ## What it shows
 
-- model
+- model with thinking level for reasoning-capable models
 - context usage with a mini bar
 - optional session quota warning
 - optional weekly quota warning
 - cumulative input tokens
 - cumulative output tokens
 - cumulative cost
-- current git branch
+- current directory with git branch on a second line
 
 ## Optional quota inputs
 
@@ -62,7 +62,8 @@ Example file contents:
 Representative footer output:
 
 ```text
-PI │ Claude Sonnet 4 │ ctx █████░░░ 68% 143.2k │ session 54% │ weekly 81%    in 512.4k │ out 38.1k │ $2.173 │  main
+PI │ Claude Sonnet 4 (high) │ ctx █████░░░ 68% 143.2k │ session 54% │ weekly 81%    in 512.4k │ out 38.1k │ $2.173
+agent-statusbar (main)
 ```
 
 Exact styling depends on your pi theme, terminal font, branch name, and live session stats.
