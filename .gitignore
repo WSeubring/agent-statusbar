@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.swp
+*.swo
+.DS_Store
+.env
+.env.*
+node_modules/
+dist/
+build/
+.vscode/
+.idea/
