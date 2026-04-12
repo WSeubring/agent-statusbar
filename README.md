@@ -10,6 +10,12 @@ Personal status bars for the coding agents I use.
 > 
 > This is where I keep the status bar integrations I actually run, tweak, and maintain for myself. It is meant to be readable and copyable, not a giant universal framework.
 
+## Screenshot
+
+![Representative screenshot of the Claude Code and pi status bars](assets/screenshot.png)
+
+A clean demo-style screenshot for the current integrations. It is representative rather than a literal live terminal capture.
+
 ## What it is
 
 This repo currently contains two small, agent-specific integrations:
