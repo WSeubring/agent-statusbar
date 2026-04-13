@@ -12,7 +12,8 @@ Personal status bars for the coding agents I use.
 
 ## Screenshot
 
-![Representative screenshot of the Claude Code and pi status bars](assets/screenshot.png)
+<img width="1241" height="101" alt="image" src="https://github.com/user-attachments/assets/ab342828-9b49-4286-b247-40c49f734bff" />
+
 
 A clean demo-style screenshot for the current integrations. It is representative rather than a literal live terminal capture.
 
