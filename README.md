@@ -144,10 +144,10 @@ More details: [integrations/claude/README.md](integrations/claude/README.md)
 
 Inside this repo, pi auto-loads the shim in `.pi/extensions/pi-status-footer.ts`.
 
-To load the integration directly from elsewhere:
+To install the integration in a pi project:
 
 ```bash
-pi -e /absolute/path/to/integrations/pi/extensions/status-footer.ts
+pi install git:github.com/WSeubring/agent-statusbar -l
 ```
 
 The pi footer shows:
