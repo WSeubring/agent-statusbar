@@ -338,16 +338,27 @@ def build_status_line(metrics: Metrics) -> str:
     parts.append(context_seg)
 
     if metrics.five_hour_pct is not None:
-        five_h_color = severity_color(metrics.five_hour_pct, 50)
-        icon = "▲" if metrics.five_hour_pct >= 50 else "•"
-        label = f"{icon} 5h {format_pct(metrics.five_hour_pct)}"
-        parts.append(pill(label, FG["white"], BG["amber"] if metrics.five_hour_pct >= 50 else BG["neutral"], bold=False) if metrics.five_hour_pct >= 50 else style(label, five_h_color))
+        if metrics.five_hour_pct >= 50:
+            icon = "▲"
+            label = f"{icon} 5h {format_pct(metrics.five_hour_pct)}"
+            parts.append(pill(label, FG["white"], BG["amber"], bold=False))
+        else:
+            label = f"• 5h {format_pct(metrics.five_hour_pct)}"
+            parts.append(muted(label))
 
     if metrics.seven_day_pct is not None:
-        seven_d_color = severity_color(metrics.seven_day_pct, 75)
-        icon = "▲" if metrics.seven_day_pct >= 75 else "•"
-        label = f"{icon} 7d {format_pct(metrics.seven_day_pct)}"
-        parts.append(pill(label, FG["white"], BG["red"] if metrics.seven_day_pct >= 90 else BG["amber"] if metrics.seven_day_pct >= 75 else BG["neutral"], bold=False) if metrics.seven_day_pct >= 75 else style(label, seven_d_color))
+        if metrics.seven_day_pct >= 90:
+            label = f"▲ 7d {format_pct(metrics.seven_day_pct)}"
+            parts.append(pill(label, FG["white"], BG["red"], bold=False))
+        elif metrics.seven_day_pct >= 75:
+            label = f"▲ 7d {format_pct(metrics.seven_day_pct)}"
+            parts.append(pill(label, FG["white"], BG["amber"], bold=False))
+        elif metrics.seven_day_pct >= 50:
+            label = f"• 7d {format_pct(metrics.seven_day_pct)}"
+            parts.append(style(label, FG["amber"]))
+        else:
+            label = f"• 7d {format_pct(metrics.seven_day_pct)}"
+            parts.append(muted(label))
 
     separator = muted(" │ ")
     top = separator.join(parts)
