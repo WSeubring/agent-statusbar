@@ -15,8 +15,9 @@ from typing import Any, Iterable
 class Metrics:
     model: str | None = None
     context_pct: float | None = None
-    session_pct: float | None = None
-    weekly_pct: float | None = None
+    five_hour_pct: float | None = None
+    seven_day_pct: float | None = None
+    extra_usage: bool = False
 
 
 RESET = "\033[0m"
@@ -166,6 +167,38 @@ def find_model(flat: list[tuple[tuple[str, ...], Any]]) -> str | None:
     return sorted(preferred, key=lambda item: item[0], reverse=True)[0][1]
 
 
+def find_extra_usage(flat: list[tuple[tuple[str, ...], Any]]) -> bool:
+    """Detect extra-usage mode from payload signals.
+
+    Checks for:
+    - explicit boolean fields: extra_usage, extra_usage_active, over_limit, is_extra
+    - billing.mode == "extra_usage"
+    - rate-limit percentages at or above 100%
+    """
+    extra_keywords = {"extra_usage", "extra_usage_active", "over_limit", "is_extra", "is_over_limit", "overage"}
+    for path, value in flat:
+        path_text = ".".join(path).lower()
+        key = path[-1].lower() if path else ""
+
+        # explicit boolean flag
+        if key in extra_keywords and isinstance(value, bool) and value:
+            return True
+
+        # string field containing "extra" in a billing/mode context
+        if isinstance(value, str) and "extra" in value.lower():
+            if any(tok in path_text for tok in ["billing", "mode", "usage", "plan"]):
+                return True
+
+        # rate-limit percentage >= 100 means quota exhausted → extra usage
+        if any(tok in path_text for tok in ["rate_limit", "five_hour", "seven_day"]):
+            if any(tok in path_text for tok in ["used", "percent", "usage"]):
+                pct = parse_percentage(value)
+                if pct is not None and pct >= 100:
+                    return True
+
+    return False
+
+
 def extract_metrics(payload: Any) -> Metrics:
     flat = list(flatten(payload))
     return Metrics(
@@ -178,23 +211,28 @@ def extract_metrics(payload: Any) -> Metrics:
                 (8, ("token", "context"), ("percent", "usage", "used")),
             ],
         ),
-        session_pct=best_match(
+        five_hour_pct=best_match(
             flat,
             [
+                (16, ("five_hour",), ("percent", "percentage", "used")),
+                (14, ("rate_limit", "five_hour"), ("percent", "percentage", "used")),
                 (12, ("session",), ("percent", "percentage", "usage", "used")),
                 (10, ("limit", "session"), ("percent", "usage", "used")),
                 (10, ("quota", "session"), ("percent", "usage", "used")),
             ],
         ),
-        weekly_pct=best_match(
+        seven_day_pct=best_match(
             flat,
             [
+                (16, ("seven_day",), ("percent", "percentage", "used")),
+                (14, ("rate_limit", "seven_day"), ("percent", "percentage", "used")),
                 (14, ("weekly",), ("percent", "percentage", "usage", "used")),
                 (12, ("week",), ("percent", "percentage", "usage", "used")),
                 (10, ("limit", "weekly"), ("percent", "usage", "used")),
                 (10, ("quota", "weekly"), ("percent", "usage", "used")),
             ],
         ),
+        extra_usage=find_extra_usage(flat),
     )
 
 
@@ -281,6 +319,10 @@ def build_status_line(metrics: Metrics) -> str:
     parts: list[str] = []
     parts.append(pill(APP_LABEL, FG["white"], BG["violet"]))
 
+    if metrics.extra_usage:
+        icon = "⚡" if USE_UNICODE else "$"
+        parts.append(pill(f"{icon} EXTRA USAGE", FG["white"], BG["red"]))
+
     if SHOW_MODEL and metrics.model:
         parts.append(pill(metrics.model, FG["white"], BG["blue"], bold=False))
 
@@ -295,17 +337,17 @@ def build_status_line(metrics: Metrics) -> str:
     )
     parts.append(context_seg)
 
-    if metrics.session_pct is not None:
-        session_color = severity_color(metrics.session_pct, 50)
-        icon = "▲" if metrics.session_pct >= 50 else "•"
-        label = f"{icon} session {format_pct(metrics.session_pct)}"
-        parts.append(pill(label, FG["white"], BG["amber"] if metrics.session_pct >= 50 else BG["neutral"], bold=False) if metrics.session_pct >= 50 else style(label, session_color))
+    if metrics.five_hour_pct is not None:
+        five_h_color = severity_color(metrics.five_hour_pct, 50)
+        icon = "▲" if metrics.five_hour_pct >= 50 else "•"
+        label = f"{icon} 5h {format_pct(metrics.five_hour_pct)}"
+        parts.append(pill(label, FG["white"], BG["amber"] if metrics.five_hour_pct >= 50 else BG["neutral"], bold=False) if metrics.five_hour_pct >= 50 else style(label, five_h_color))
 
-    if metrics.weekly_pct is not None:
-        weekly_color = severity_color(metrics.weekly_pct, 75)
-        icon = "▲" if metrics.weekly_pct >= 75 else "•"
-        label = f"{icon} weekly {format_pct(metrics.weekly_pct)}"
-        parts.append(pill(label, FG["white"], BG["red"] if metrics.weekly_pct >= 90 else BG["amber"] if metrics.weekly_pct >= 75 else BG["neutral"], bold=False) if metrics.weekly_pct >= 75 else style(label, weekly_color))
+    if metrics.seven_day_pct is not None:
+        seven_d_color = severity_color(metrics.seven_day_pct, 75)
+        icon = "▲" if metrics.seven_day_pct >= 75 else "•"
+        label = f"{icon} 7d {format_pct(metrics.seven_day_pct)}"
+        parts.append(pill(label, FG["white"], BG["red"] if metrics.seven_day_pct >= 90 else BG["amber"] if metrics.seven_day_pct >= 75 else BG["neutral"], bold=False) if metrics.seven_day_pct >= 75 else style(label, seven_d_color))
 
     separator = muted(" │ ")
     top = separator.join(parts)
@@ -317,10 +359,19 @@ def build_status_line(metrics: Metrics) -> str:
 
 DEMO_PAYLOAD = {
     "model": {"display_name": "Claude Sonnet 4"},
-    "context": {"used_percent": 68},
-    "limits": {
-        "session": {"used_percent": 54},
-        "weekly": {"used_percent": 81},
+    "context_window": {"used_percentage": 68},
+    "rate_limits": {
+        "five_hour": {"used_percentage": 54, "resets_at": 1750000000},
+        "seven_day": {"used_percentage": 81, "resets_at": 1750500000},
+    },
+}
+
+DEMO_EXTRA_PAYLOAD = {
+    "model": {"display_name": "Claude Sonnet 4"},
+    "context_window": {"used_percentage": 42},
+    "rate_limits": {
+        "five_hour": {"used_percentage": 100, "resets_at": 1750000000},
+        "seven_day": {"used_percentage": 95, "resets_at": 1750500000},
     },
 }
 
@@ -328,6 +379,8 @@ DEMO_PAYLOAD = {
 def load_payload(argv: list[str]) -> Any:
     if len(argv) > 1 and argv[1] == "--demo":
         return DEMO_PAYLOAD
+    if len(argv) > 1 and argv[1] == "--demo-extra":
+        return DEMO_EXTRA_PAYLOAD
 
     if len(argv) > 1:
         path = Path(argv[1])
