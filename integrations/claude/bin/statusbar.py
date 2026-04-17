@@ -283,6 +283,10 @@ def location_line(cwd: Path | None = None) -> str | None:
     return muted(cwd_name)
 
 
+def status_icon() -> str:
+    return "▲" if USE_UNICODE else "^"
+
+
 def build_status_line(metrics: Metrics) -> str:
     parts: list[str] = []
     parts.append(pill(APP_LABEL, FG["white"], BG["violet"]))
@@ -303,15 +307,23 @@ def build_status_line(metrics: Metrics) -> str:
 
     if metrics.session_pct is not None:
         session_color = severity_color(metrics.session_pct, 50)
-        icon = "▲" if metrics.session_pct >= 50 else "•"
+        icon = status_icon()
         label = f"{icon} session {format_pct(metrics.session_pct)}"
-        parts.append(pill(label, FG["white"], BG["amber"] if metrics.session_pct >= 50 else BG["neutral"], bold=False) if metrics.session_pct >= 50 else style(label, session_color))
+        parts.append(
+            pill(label, FG["white"], BG["amber"] if metrics.session_pct >= 50 else BG["neutral"], bold=False)
+            if metrics.session_pct >= 50
+            else style(label, session_color)
+        )
 
     if metrics.weekly_pct is not None:
         weekly_color = severity_color(metrics.weekly_pct, 75)
-        icon = "▲" if metrics.weekly_pct >= 75 else "•"
+        icon = status_icon()
         label = f"{icon} weekly {format_pct(metrics.weekly_pct)}"
-        parts.append(pill(label, FG["white"], BG["red"] if metrics.weekly_pct >= 90 else BG["amber"] if metrics.weekly_pct >= 75 else BG["neutral"], bold=False) if metrics.weekly_pct >= 75 else style(label, weekly_color))
+        parts.append(
+            pill(label, FG["white"], BG["red"] if metrics.weekly_pct >= 90 else BG["amber"] if metrics.weekly_pct >= 75 else BG["neutral"], bold=False)
+            if metrics.weekly_pct >= 75
+            else style(label, weekly_color)
+        )
 
     separator = muted(" │ ")
     top = separator.join(parts)
