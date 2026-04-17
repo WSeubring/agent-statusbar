@@ -114,6 +114,8 @@ The renderer reads JSON from:
 
 It also supports the older `CLAUDE_STATUSBAR_*` environment variables for compatibility.
 
+Claude Code now exposes a `rate_limits` object in the JSON payload, which this renderer uses for session (`five_hour`) and weekly (`seven_day`) utilization display when present.
+
 Useful environment variables:
 
 ```bash

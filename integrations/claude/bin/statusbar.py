@@ -181,6 +181,8 @@ def extract_metrics(payload: Any) -> Metrics:
         session_pct=best_match(
             flat,
             [
+                (16, ("five_hour",), ("rate", "limit", "used", "usage", "percent", "percentage")),
+                (14, ("rate_limits", "five_hour"), ("used", "usage", "percent", "percentage")),
                 (12, ("session",), ("percent", "percentage", "usage", "used")),
                 (10, ("limit", "session"), ("percent", "usage", "used")),
                 (10, ("quota", "session"), ("percent", "usage", "used")),
@@ -189,6 +191,8 @@ def extract_metrics(payload: Any) -> Metrics:
         weekly_pct=best_match(
             flat,
             [
+                (18, ("seven_day",), ("rate", "limit", "used", "usage", "percent", "percentage")),
+                (16, ("rate_limits", "seven_day"), ("used", "usage", "percent", "percentage")),
                 (14, ("weekly",), ("percent", "percentage", "usage", "used")),
                 (12, ("week",), ("percent", "percentage", "usage", "used")),
                 (10, ("limit", "weekly"), ("percent", "usage", "used")),
@@ -209,6 +213,8 @@ def muted(text: str) -> str:
 
 def severity_color(value: float | None, warn: float, high: float = 90) -> str:
     if value is None:
+        return FG["slate"]
+    if value < 50:
         return FG["slate"]
     if value >= high:
         return FG["red"]
@@ -318,9 +324,9 @@ def build_status_line(metrics: Metrics) -> str:
 DEMO_PAYLOAD = {
     "model": {"display_name": "Claude Sonnet 4"},
     "context": {"used_percent": 68},
-    "limits": {
-        "session": {"used_percent": 54},
-        "weekly": {"used_percent": 81},
+    "rate_limits": {
+        "five_hour": {"used_percentage": 54, "resets_at": 1711540800},
+        "seven_day": {"used_percentage": 81, "resets_at": 1711540800},
     },
 }
 

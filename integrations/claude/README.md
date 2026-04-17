@@ -34,6 +34,8 @@ It also supports both env var prefixes for compatibility:
 - `AGENT_STATUSBAR_*`
 - `CLAUDE_STATUSBAR_*`
 
+Claude Code now passes the `rate_limits` object through stdin when available, including `five_hour` and `seven_day` usage windows. This renderer will use those values first for session and weekly rate-limit display.
+
 ## Useful environment variables
 
 ```bash
