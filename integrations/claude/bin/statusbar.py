@@ -333,6 +333,8 @@ def muted(text: str) -> str:
 def severity_color(value: float | None, warn: float, high: float = 90) -> str:
     if value is None:
         return FG["slate"]
+    if value < 50:
+        return FG["slate"]
     if value >= high:
         return FG["red"]
     if value >= warn:
@@ -398,6 +400,10 @@ def location_line(cwd: Path | None = None) -> str | None:
         pass
 
     return muted(cwd_name)
+
+
+def status_icon() -> str:
+    return "▲" if USE_UNICODE else "^"
 
 
 def build_status_line(metrics: Metrics) -> str:
