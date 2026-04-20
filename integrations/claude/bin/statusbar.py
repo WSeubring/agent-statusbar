@@ -6,7 +6,9 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -16,6 +18,7 @@ class Metrics:
     model: str | None = None
     context_pct: float | None = None
     five_hour_pct: float | None = None
+    five_hour_reset_epoch: float | None = None
     seven_day_pct: float | None = None
     extra_usage: bool = False
 
@@ -167,6 +170,87 @@ def find_model(flat: list[tuple[tuple[str, ...], Any]]) -> str | None:
     return sorted(preferred, key=lambda item: item[0], reverse=True)[0][1]
 
 
+def parse_epoch(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if number > 1e12:  # milliseconds
+            number /= 1000.0
+        if number < 1e9:  # sanity: before 2001 — probably not an epoch
+            return None
+        return number
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            number = float(text)
+            return parse_epoch(number)
+        except ValueError:
+            pass
+        try:
+            iso = text.replace("Z", "+00:00")
+            return datetime.fromisoformat(iso).timestamp()
+        except ValueError:
+            return None
+    return None
+
+
+def find_five_hour_reset(flat: list[tuple[tuple[str, ...], Any]]) -> float | None:
+    candidates: list[tuple[int, float]] = []
+    for path, value in flat:
+        path_text = ".".join(path).lower()
+        if not any(tok in path_text for tok in ["five_hour", "session", "5h"]):
+            continue
+        if not any(tok in path_text for tok in ["reset", "resets_at", "expires", "refresh", "renew"]):
+            continue
+        epoch = parse_epoch(value)
+        if epoch is None:
+            continue
+        score = 0
+        if "five_hour" in path_text:
+            score += 10
+        if "session" in path_text:
+            score += 6
+        if "reset" in path_text:
+            score += 4
+        candidates.append((score, epoch))
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda item: item[0], reverse=True)[0][1]
+
+
+SUBSCRIPT_DIGITS = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+
+
+def _smallify(text: str) -> str:
+    if not USE_UNICODE:
+        return text
+    return (
+        text.translate(SUBSCRIPT_DIGITS)
+        .replace("h", "ₕ")
+        .replace("m", "ₘ")
+        .replace(" ", "")
+    )
+
+
+def format_time_remaining(epoch: float | None, now: float | None = None) -> str | None:
+    if epoch is None:
+        return None
+    now = now if now is not None else time.time()
+    remaining = int(epoch - now)
+    if remaining <= 0:
+        return None
+    hours, rem = divmod(remaining, 3600)
+    minutes = rem // 60
+    if hours > 0:
+        plain = f"{hours}h {minutes:02d}m"
+    else:
+        plain = f"{minutes}m"
+    return _smallify(plain)
+
+
 def find_extra_usage(flat: list[tuple[tuple[str, ...], Any]]) -> bool:
     """Detect extra-usage mode from payload signals.
 
@@ -221,6 +305,7 @@ def extract_metrics(payload: Any) -> Metrics:
                 (10, ("quota", "session"), ("percent", "usage", "used")),
             ],
         ),
+        five_hour_reset_epoch=find_five_hour_reset(flat),
         seven_day_pct=best_match(
             flat,
             [
@@ -338,12 +423,14 @@ def build_status_line(metrics: Metrics) -> str:
     parts.append(context_seg)
 
     if metrics.five_hour_pct is not None:
+        remaining = format_time_remaining(metrics.five_hour_reset_epoch)
+        suffix = f" {remaining}" if remaining else ""
         if metrics.five_hour_pct >= 50:
             icon = "▲"
-            label = f"{icon} 5h {format_pct(metrics.five_hour_pct)}"
+            label = f"{icon} 5h {format_pct(metrics.five_hour_pct)}{suffix}"
             parts.append(pill(label, FG["white"], BG["amber"], bold=False))
         else:
-            label = f"• 5h {format_pct(metrics.five_hour_pct)}"
+            label = f"• 5h {format_pct(metrics.five_hour_pct)}{suffix}"
             parts.append(muted(label))
 
     if metrics.seven_day_pct is not None:
@@ -368,12 +455,14 @@ def build_status_line(metrics: Metrics) -> str:
     return top
 
 
+DEMO_NOW = time.time()
+
 DEMO_PAYLOAD = {
     "model": {"display_name": "Claude Sonnet 4"},
     "context_window": {"used_percentage": 68},
     "rate_limits": {
-        "five_hour": {"used_percentage": 54, "resets_at": 1750000000},
-        "seven_day": {"used_percentage": 81, "resets_at": 1750500000},
+        "five_hour": {"used_percentage": 54, "resets_at": DEMO_NOW + 2 * 3600 + 34 * 60},
+        "seven_day": {"used_percentage": 81, "resets_at": DEMO_NOW + 4 * 86400},
     },
 }
 
@@ -381,8 +470,8 @@ DEMO_EXTRA_PAYLOAD = {
     "model": {"display_name": "Claude Sonnet 4"},
     "context_window": {"used_percentage": 42},
     "rate_limits": {
-        "five_hour": {"used_percentage": 100, "resets_at": 1750000000},
-        "seven_day": {"used_percentage": 95, "resets_at": 1750500000},
+        "five_hour": {"used_percentage": 100, "resets_at": DEMO_NOW + 45 * 60},
+        "seven_day": {"used_percentage": 95, "resets_at": DEMO_NOW + 4 * 86400},
     },
 }
 
