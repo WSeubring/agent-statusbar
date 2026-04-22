@@ -98,7 +98,10 @@ def parse_percentage(value: Any) -> float | None:
         return None
     if isinstance(value, (int, float)):
         number = float(value)
-        if 0 <= number <= 1:
+        # Treat fractional values like 0.42 as 42%, but do not convert exact 1 to 100.
+        # Many Claude/agent status payloads express percentages as 0..100, and
+        # `1` is much more likely to mean 1% than 100%.
+        if 0 <= number < 1:
             return number * 100
         if 0 <= number <= 100:
             return number
