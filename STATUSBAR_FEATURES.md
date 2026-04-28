@@ -31,9 +31,12 @@ These are the main features we want to support when the host agent exposes the d
 - Show current context usage percent
 - Prefer a compact bar + percent
 - If token count is available, include it
+- If absolute token count is available, allow a configurable dumb-zone warning with a default of `200k+`
+- Severity can become visually stronger again at higher absolute token counts
 - Examples:
   - `ctx █████░░░ 68%`
   - `ctx █████░░░ 68% 143.2k`
+  - `ctx █████░░░ 68% 243.2k dumb-zone`
 
 ### 5. Quota / limit warnings
 - Session usage if available
@@ -93,6 +96,7 @@ Current/expected support:
 - label
 - model
 - context percent + bar
+- dumb-zone warning when Claude reports `200k+` recent tokens
 - session quota if present in payload
 - weekly quota if present in payload
 - second line with `dir (branch)`
@@ -108,6 +112,7 @@ Current/expected support:
 - model
 - thinking level
 - context percent + bar + token count
+- dumb-zone warning when estimated context exceeds `200k` tokens
 - optional session quota
 - optional weekly quota
 - cumulative input tokens

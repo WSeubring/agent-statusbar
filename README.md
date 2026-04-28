@@ -27,7 +27,7 @@ This repo currently contains two small, agent-specific integrations:
 Shared goals:
 
 - show the active model
-- show context usage clearly
+- show context usage clearly, including a dumb-zone warning at 200k+ when token data is available
 - optionally show session or weekly quota warnings when available
 - stay compact enough for everyday terminal use
 
@@ -116,6 +116,10 @@ It also supports the older `CLAUDE_STATUSBAR_*` environment variables for compat
 
 Claude Code now exposes a `rate_limits` object in the JSON payload, which this renderer uses for session (`five_hour`) and weekly (`seven_day`) utilization display when present.
 
+When Claude includes the native `exceeds_200k_tokens` signal, the renderer also adds a colored `dumb-zone` warning.
+
+You can override the default threshold with `AGENT_STATUSBAR_DUMB_ZONE_TOKENS` (or `CLAUDE_STATUSBAR_DUMB_ZONE_TOKENS` / `PI_STATUS_DUMB_ZONE_TOKENS` per integration).
+
 Useful environment variables:
 
 ```bash
@@ -124,6 +128,7 @@ AGENT_STATUSBAR_ASCII=1
 AGENT_STATUSBAR_BAR_WIDTH=12
 AGENT_STATUSBAR_HIDE_MODEL=1
 AGENT_STATUSBAR_LABEL=CLAUDE
+AGENT_STATUSBAR_DUMB_ZONE_TOKENS=250k
 ```
 
 Add this to `~/.claude/settings.json` to enable it in Claude Code:
@@ -162,6 +167,7 @@ The pi footer shows:
 
 - model with thinking level for reasoning-capable models
 - context usage with a mini bar
+- a `dumb-zone` warning once estimated context exceeds `200k` tokens
 - optional session warning at `50%+`
 - optional weekly warning at `75%+`
 - current directory with git branch on a second line
@@ -173,6 +179,7 @@ Optional quota inputs:
 ```bash
 export PI_STATUS_SESSION_PCT=54
 export PI_STATUS_WEEKLY_PCT=81
+export PI_STATUS_DUMB_ZONE_TOKENS=250k
 pi
 ```
 

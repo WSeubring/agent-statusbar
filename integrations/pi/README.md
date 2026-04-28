@@ -22,6 +22,7 @@ pi -e /absolute/path/to/integrations/pi/extensions/status-footer.ts
 
 - model with thinking level for reasoning-capable models
 - context usage with a mini bar
+- `dumb-zone` warning once estimated context exceeds `200k` tokens by default
 - optional session quota warning
 - optional weekly quota warning
 - cumulative input tokens
@@ -38,6 +39,7 @@ pi does not natively expose Claude subscription quota data, so session and weekl
 ```bash
 export PI_STATUS_SESSION_PCT=54
 export PI_STATUS_WEEKLY_PCT=81
+export PI_STATUS_DUMB_ZONE_TOKENS=250k
 pi
 ```
 
@@ -71,5 +73,7 @@ Exact styling depends on your pi theme, terminal font, branch name, and live ses
 ## Notes
 
 - The footer uses native pi APIs for context usage, git branch, and cumulative session usage.
+- The `dumb-zone` warning threshold defaults to `200k` tokens and can be overridden with `PI_STATUS_DUMB_ZONE_TOKENS` or `AGENT_STATUSBAR_DUMB_ZONE_TOKENS`.
+- The error severity defaults to `1.5x` the warning threshold, and can be overridden with `PI_STATUS_DUMB_ZONE_ERROR_TOKENS` or `AGENT_STATUSBAR_DUMB_ZONE_ERROR_TOKENS`.
 - Quota values are intentionally optional and injected from env vars or a small JSON file.
 - The `.pi/extensions/pi-status-footer.ts` file is only an auto-discovery shim.

@@ -36,6 +36,10 @@ It also supports both env var prefixes for compatibility:
 
 Claude Code now passes the `rate_limits` object through stdin when available, including `five_hour` and `seven_day` usage windows. This renderer will use those values first for session and weekly rate-limit display.
 
+When Claude includes the native `exceeds_200k_tokens` flag, the renderer also adds a colored `dumb-zone` warning. If `context_window.current_usage` is present, it is used to increase the warning severity.
+
+The warning threshold defaults to `200k` and can be overridden with `AGENT_STATUSBAR_DUMB_ZONE_TOKENS` or `CLAUDE_STATUSBAR_DUMB_ZONE_TOKENS`.
+
 ## Useful environment variables
 
 ```bash
@@ -43,6 +47,7 @@ AGENT_STATUSBAR_ASCII=1
 AGENT_STATUSBAR_BAR_WIDTH=12
 AGENT_STATUSBAR_HIDE_MODEL=1
 AGENT_STATUSBAR_LABEL=CLAUDE
+AGENT_STATUSBAR_DUMB_ZONE_TOKENS=250k
 ```
 
 Example:
@@ -78,6 +83,8 @@ agent-statusbar (main)
 ## Notes
 
 - The renderer tries to find model, context, session, and weekly usage heuristically from nested JSON.
+- It also uses Claude's native `exceeds_200k_tokens` signal for a `dumb-zone` warning when available.
+- The warning threshold defaults to `200k`, while the error threshold defaults to `1.5x` that value unless explicitly overridden.
 - It also shows the current directory and git branch from the current working tree.
 - If data is missing, the output degrades gracefully instead of failing hard.
 - The top-level `bin/agent-statusbar.py` file is only a compatibility wrapper.

@@ -19,6 +19,13 @@ import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import fs from "node:fs";
 import path from "node:path";
 
+type Tone = "accent" | "muted" | "dim" | "success" | "warning" | "error";
+
+type DumbZoneThresholds = {
+	warning: number;
+	error: number;
+};
+
 function parsePercent(value: unknown): number | undefined {
 	if (value === null || value === undefined || value === "") return undefined;
 	if (typeof value === "number" && Number.isFinite(value)) {
@@ -56,6 +63,31 @@ function fmtTokens(n: number): string {
 	if (n < 1000) return `${n}`;
 	if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
 	return `${(n / 1_000_000).toFixed(1)}m`;
+}
+
+function parseTokenThreshold(value: string | undefined): number | undefined {
+	if (!value) return undefined;
+	const trimmed = value.trim().toLowerCase().replaceAll(",", "");
+	const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([km]?)$/);
+	if (!match) return undefined;
+	let number = Number(match[1]);
+	if (!Number.isFinite(number) || number <= 0) return undefined;
+	if (match[2] === "k") number *= 1_000;
+	if (match[2] === "m") number *= 1_000_000;
+	return Math.round(number);
+}
+
+function readDumbZoneThresholds(): DumbZoneThresholds {
+	const warning = parseTokenThreshold(process.env.PI_STATUS_DUMB_ZONE_TOKENS ?? process.env.AGENT_STATUSBAR_DUMB_ZONE_TOKENS) ?? 200_000;
+	const error = parseTokenThreshold(process.env.PI_STATUS_DUMB_ZONE_ERROR_TOKENS ?? process.env.AGENT_STATUSBAR_DUMB_ZONE_ERROR_TOKENS) ?? Math.max(warning + 1, Math.round(warning * 1.5));
+	return { warning, error };
+}
+
+function dumbZoneTone(tokens: number | null | undefined, thresholds: DumbZoneThresholds): Tone | undefined {
+	if (tokens === null || tokens === undefined || !Number.isFinite(tokens)) return undefined;
+	if (tokens >= thresholds.error) return "error";
+	if (tokens >= thresholds.warning) return "warning";
+	return undefined;
 }
 
 function formatModelLabel(model: any, thinkingLevel: string | undefined): string | undefined {
@@ -115,6 +147,7 @@ function installFooter(pi: ExtensionAPI, ctx: any) {
 				const usage = ctx.getContextUsage();
 				const contextPct = clampPct(parsePercent(usage?.percent));
 				const contextTokens = usage?.tokens ?? undefined;
+				const dumbZoneThresholds = readDumbZoneThresholds();
 				const limits = readLimitData();
 
 				let input = 0;
@@ -136,10 +169,7 @@ function installFooter(pi: ExtensionAPI, ctx: any) {
 				const accent = (text: string) => theme.fg("accent", text);
 				const divider = soft(" │ ");
 
-				const paint = (
-					tone: "accent" | "muted" | "dim" | "success" | "warning" | "error",
-					text: string,
-				) => {
+				const paint = (tone: Tone, text: string) => {
 					if (tone === "accent") return accent(text);
 					if (tone === "muted") return muted(text);
 					if (tone === "dim") return soft(text);
@@ -151,26 +181,25 @@ function installFooter(pi: ExtensionAPI, ctx: any) {
 				const labelValue = (
 					label: string,
 					value: string | undefined,
-					labelTone: "accent" | "muted" | "dim" | "success" | "warning" | "error" = "muted",
-					valueTone: "accent" | "muted" | "dim" | "success" | "warning" | "error" = "dim",
+					labelTone: Tone = "muted",
+					valueTone: Tone = "dim",
 				) => {
 					if (!value) return paint(labelTone, label);
 					return `${paint(labelTone, label)} ${paint(valueTone, value)}`;
 				};
 
-				const valueOnly = (
-					value: string,
-					tone: "accent" | "muted" | "dim" | "success" | "warning" | "error" = "muted",
-				) => paint(tone, value);
+				const valueOnly = (value: string, tone: Tone = "muted") => paint(tone, value);
 
-				const contextTone = contextPct !== undefined && contextPct >= 90
+				const contextTone: Tone = contextPct !== undefined && contextPct >= 90
 					? "error"
 					: contextPct !== undefined && contextPct >= 70
 						? "warning"
 						: "muted";
-
-				let contextValue = `${icon("ctx")} ${miniBar(contextPct)} ${formatPct(contextPct)}`;
-				if (contextTokens) contextValue += ` ${fmtTokens(contextTokens)}`;
+				const contextTokenTone = dumbZoneTone(contextTokens, dumbZoneThresholds) ?? contextTone;
+				const contextDumbZoneTone = dumbZoneTone(contextTokens, dumbZoneThresholds);
+				const contextParts = [paint(contextTone, `${icon("ctx")} ${miniBar(contextPct)} ${formatPct(contextPct)}`)];
+				if (contextTokens !== undefined) contextParts.push(paint(contextTokenTone, fmtTokens(contextTokens)));
+				if (contextDumbZoneTone) contextParts.push(paint(contextDumbZoneTone, "dumb-zone"));
 
 				const quotaSegment = (name: "session" | "weekly", value: number | undefined, threshold: number) => {
 					if (value === undefined) return undefined;
@@ -185,7 +214,7 @@ function installFooter(pi: ExtensionAPI, ctx: any) {
 					leftParts.push(valueOnly(modelLabel, "muted"));
 				}
 
-				leftParts.push(`${muted("ctx")} ${paint(contextTone, contextValue)}`);
+				leftParts.push(`${muted("ctx")} ${contextParts.join(" ")}`);
 
 				const sessionSegment = quotaSegment("session", limits.session, 50);
 				if (sessionSegment) leftParts.push(sessionSegment);

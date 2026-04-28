@@ -21,6 +21,8 @@ class Metrics:
     five_hour_reset_epoch: float | None = None
     seven_day_pct: float | None = None
     extra_usage: bool = False
+    current_usage_tokens: int | None = None
+    exceeds_200k_tokens: bool = False
 
 
 RESET = "\033[0m"
@@ -50,6 +52,8 @@ BG = {
     "red": "\033[48;5;88m",
     "neutral": "\033[48;5;238m",
 }
+
+DEFAULT_DUMB_ZONE_WARNING_TOKENS = 200_000
 
 
 def env_value(*names: str, default: str | None = None) -> str | None:
@@ -200,6 +204,96 @@ def parse_epoch(value: Any) -> float | None:
     return None
 
 
+def parse_count(value: Any) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        if value < 0:
+            return None
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip().lower().replace(",", "")
+        if not text:
+            return None
+        match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([km]?)", text)
+        if not match:
+            return None
+        number = float(match.group(1))
+        suffix = match.group(2)
+        if suffix == "k":
+            number *= 1000
+        elif suffix == "m":
+            number *= 1_000_000
+        return int(number)
+    return None
+
+
+def parse_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"1", "true", "yes", "on"}:
+            return True
+        if text in {"0", "false", "no", "off", ""}:
+            return False
+    return None
+
+
+def dumb_zone_warning_tokens() -> int:
+    parsed = parse_count(env_value("AGENT_STATUSBAR_DUMB_ZONE_TOKENS", "CLAUDE_STATUSBAR_DUMB_ZONE_TOKENS"))
+    return parsed if parsed is not None else DEFAULT_DUMB_ZONE_WARNING_TOKENS
+
+
+def dumb_zone_error_tokens() -> int:
+    parsed = parse_count(env_value("AGENT_STATUSBAR_DUMB_ZONE_ERROR_TOKENS", "CLAUDE_STATUSBAR_DUMB_ZONE_ERROR_TOKENS"))
+    if parsed is not None:
+        return parsed
+    warning = dumb_zone_warning_tokens()
+    return max(warning + 1, round(warning * 1.5))
+
+
+def find_current_usage_tokens(payload: Any) -> int | None:
+    if not isinstance(payload, dict):
+        return None
+    context_window = payload.get("context_window")
+    if not isinstance(context_window, dict):
+        return None
+    current_usage = context_window.get("current_usage")
+    if not isinstance(current_usage, dict):
+        return None
+
+    total = 0
+    found = False
+    for key, value in current_usage.items():
+        if "token" not in str(key).lower():
+            continue
+        count = parse_count(value)
+        if count is None:
+            continue
+        total += count
+        found = True
+    return total if found else None
+
+
+def find_exceeds_200k_tokens(payload: Any, flat: list[tuple[tuple[str, ...], Any]]) -> bool:
+    if isinstance(payload, dict):
+        direct = parse_bool(payload.get("exceeds_200k_tokens"))
+        if direct is not None:
+            return direct
+
+    for path, value in flat:
+        if path and path[-1].lower() == "exceeds_200k_tokens":
+            parsed = parse_bool(value)
+            if parsed is not None:
+                return parsed
+    return False
+
+
 def find_five_hour_reset(flat: list[tuple[tuple[str, ...], Any]]) -> float | None:
     candidates: list[tuple[int, float]] = []
     for path, value in flat:
@@ -321,6 +415,8 @@ def extract_metrics(payload: Any) -> Metrics:
             ],
         ),
         extra_usage=find_extra_usage(flat),
+        current_usage_tokens=find_current_usage_tokens(payload),
+        exceeds_200k_tokens=find_exceeds_200k_tokens(payload, flat),
     )
 
 
@@ -357,6 +453,22 @@ def context_color(value: float | None) -> str:
     if value >= 55:
         return FG["amber"]
     return FG["green"]
+
+
+def dumb_zone_bg(tokens: int | None, exceeds: bool) -> str | None:
+    warning_tokens = dumb_zone_warning_tokens()
+    error_tokens = dumb_zone_error_tokens()
+
+    if tokens is not None and tokens >= error_tokens:
+        return BG["red"]
+    if tokens is not None and tokens >= warning_tokens:
+        return BG["amber"]
+
+    # Claude's native exceeds_200k_tokens flag is fixed at 200k, so only use it as
+    # a fallback when the configured warning threshold is at or below the same level.
+    if exceeds and warning_tokens <= DEFAULT_DUMB_ZONE_WARNING_TOKENS:
+        return BG["amber"]
+    return None
 
 
 def format_pct(value: float | None) -> str:
@@ -431,6 +543,10 @@ def build_status_line(metrics: Metrics) -> str:
     )
     parts.append(context_seg)
 
+    dumb_zone_pill_bg = dumb_zone_bg(metrics.current_usage_tokens, metrics.exceeds_200k_tokens)
+    if dumb_zone_pill_bg:
+        parts.append(pill("dumb-zone", FG["white"], dumb_zone_pill_bg, bold=False))
+
     if metrics.five_hour_pct is not None:
         remaining = format_time_remaining(metrics.five_hour_reset_epoch)
         suffix = f" {remaining}" if remaining else ""
@@ -477,7 +593,16 @@ DEMO_PAYLOAD = {
 
 DEMO_EXTRA_PAYLOAD = {
     "model": {"display_name": "Claude Sonnet 4"},
-    "context_window": {"used_percentage": 42},
+    "context_window": {
+        "used_percentage": 42,
+        "current_usage": {
+            "input_tokens": 148000,
+            "output_tokens": 12000,
+            "cache_creation_input_tokens": 22000,
+            "cache_read_input_tokens": 26000,
+        },
+    },
+    "exceeds_200k_tokens": True,
     "rate_limits": {
         "five_hour": {"used_percentage": 100, "resets_at": DEMO_NOW + 45 * 60},
         "seven_day": {"used_percentage": 95, "resets_at": DEMO_NOW + 4 * 86400},
